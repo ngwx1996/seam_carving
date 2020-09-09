@@ -143,7 +143,12 @@ int main(int argc, char* argv[]) {
 	// Set how much to reduce width or/and height by and set image.
 	int reduceWidth = 100;
 	int reduceHeight = 50;
-	Mat image = imread("../images/inputSeamCarvingPrague.jpg", IMREAD_COLOR);
+	string imageName = "../images/inputPrague.jpg";
+	Mat image = imread(imageName, IMREAD_COLOR);
+	if (image.empty()) {
+		cout << "Invalid image. Please try again" << endl;
+		return 1;
+	}
 	pair<int, int> imageSize = { image.cols, image.rows };
 	imshow("Original", image);
 
@@ -174,6 +179,7 @@ int main(int argc, char* argv[]) {
 	clock_t end = clock();
 	float totalTime = ((float)end - (float)start) / CLOCKS_PER_SEC;
 	cout << "Parallel with CUDA" << endl;
+	cout << "Image name: " << imageName << endl;
 	cout << "Input dimension " << imageSize.first << " x " << imageSize.second << endl;
 	cout << "Output dimension " << image.cols << " x " << image.rows << endl;
 	cout << "Cumulative time taken in each function for all iterations" << "s" << endl;
@@ -183,6 +189,7 @@ int main(int argc, char* argv[]) {
 	cout << "Time taken to remove seam: " << removeSeamTime << "s" << endl;
 	cout << "Total time taken: " << totalTime << "s" << endl;
 
+	imwrite("../images/outputPrague.jpg", image);
 	waitKey();
 	return 0;
 }

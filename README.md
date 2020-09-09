@@ -12,6 +12,7 @@ To run the project, open the solution in Visual Studio.<br />
 To select image and width/height reduction amount, edit within the main functions of both the sequential and parallel projects.<br />
 Width reduction = reduceWidth<br />
 Height reduction = reduceHeight<br />
+Image name = String imageName<br />
 The solution can be run in Debug mode. To run in Release mode, openCV must be included and linked in the properties.<br />
 
 ## Project structure
@@ -71,14 +72,67 @@ seam_carving
 |3.| GPU | NVIDIA GTX970 |
 
 ### inputPrague.jpg
+  * Input Image <br />
+    <img src=images/inputPrague.jpg width="640" height="480">
 
-### inputBroadwayTower.jpg
+  * Output Image <br />
+    <img src=images/outputPrague.jpg width="540" height="430">
+
+| Dimension | Width x Height|
+  |---|---|
+| Input | 640 x 480 |
+| Output | 540 x 430 |
+
+| Time taken | Sequential | Parallel |
+|--|--|--|
+| To get energy | 8.27s | 2.181s |
+| To get cumulative energy map | 18.753s |  1.625s |
+| To find seam | 0.038s | 0.138s |
+| To remove seam | 1.431s | 0.367s |
+| Total time taken| **28.685s** | **4.638s** |
 
 ### inputColdplayWings.jpg
+ * Input Image <br />
+    <img src=images/inputColdplayWings.jpg width="1600" height="900">
 
+  * Output Image <br />
+    <img src=images/outputColdplayWings.jpg width="600" height="900">
 
-### inputGoldenGate.jpg
+| Dimension | Width x Height|
+  |---|---|
+| Input | 1600 x 900 |
+| Output | 600 x 900 |
 
+| Time taken | Sequential | Parallel |
+|--|--|--|
+| To get energy | 203.018s | 34.106s |
+| To get cumulative energy map | 464.636ss |  26.686s |
+| To find seam | 0.538997s | 1.148s |
+| To remove seam | 16.706s | 7.569s |
+| Total time taken| **687.491s** | **73.25s** |
+
+### inputTree.jpg
+  * Input Image <br />
+    <img src=images/inputTree.jpg width="775" height="769"> 
+
+  * Output Image <br />
+    <img src=images/outputTree.jpg width="775" height="569">
+
+  | Dimension | Width x Height|
+  |---|---|
+  | Input | 775 x 769 | 
+  | Output | 775 x 569 |
+  
+  | Time taken | Sequential | Parallel |
+  |--|--|--|
+  | To get energy | 20.876s | 6.318s |
+  | To get cumulative energy map | 49.99s |  4.599s |
+  | To find seam | 0.08s | 0.365999s |
+  | To remove seam | 4.156s | 1.387s |
+  | Total time taken| **75.551s** | **13.566s** |
+  
+### Conclusion
+Using CUDA to perform parallel computation speed up the algorithm by more than 5x. However, the use of parallel reduction to locate the minimum cumulative energy in the last row/column took longer than using openCV minMaxLoc(). This could be due to the small number of values (<2000) not being able to take advantage of parallelization.
 
 
 ## Future changes
