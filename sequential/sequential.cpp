@@ -223,12 +223,13 @@ void removeSeam(Mat& image, vector<int> seam, eSeamDirection seamDirection) {
 int main(int argc, char* argv[]) {
 	clock_t start = clock();
 	// Set how much to reduce width or/and height by and set image.
-	int reduceWidth = 100;
-	int reduceHeight = 50;
-	string imageName = "../images/inputPrague.jpg";
+	int reduceWidth = 1000;
+	int reduceHeight = 200;
+	string imageName = "F:/CUDA/seam_carving/images/inputColdplayWings.jpg";
 	Mat image = imread(imageName, IMREAD_COLOR);
 	if (image.empty()) {
 		cout << "Invalid image. Please try again" << endl;
+		waitKey(0);
 		return 1;
 	}
 	pair<int, int> imageSize = { image.cols, image.rows };
@@ -265,7 +266,7 @@ int main(int argc, char* argv[]) {
 	cout << "Time taken to remove seam: " << removeSeamTime << "s" << endl;
 	cout << "Total time taken: " << totalTime << "s" << endl;
 
-	imwrite("../images/outputPrague.jpg", image);
-	waitKey();
+	imwrite("F:/CUDA/seam_carving/images/outputColdplayWings.jpg", image);
+	waitKey(0);
 	return 0;
 }

@@ -9,7 +9,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <time.h>
+#include <chrono>
 #include "parallel.h"
 
 using namespace std;
@@ -21,9 +21,10 @@ float findSeamTime = 0;
 float removeSeamTime = 0;
 
 Mat createEnergyImg(Mat& image) {
-	clock_t start = clock();
+	auto start = chrono::high_resolution_clock::now();
 	Mat grad, energy;
-	cuda::GpuMat gpuImage, grayscale;
+	cuda::GpuMat gpuImage(image.rows, image.cols, image.type());
+	cuda::GpuMat grayscale;
 	cuda::GpuMat grad_x, grad_y;
 	cuda::GpuMat abs_grad_x, abs_grad_y;
 	int ddepth = CV_16S;
@@ -31,6 +32,7 @@ Mat createEnergyImg(Mat& image) {
 	int delta = 0;
 
 	gpuImage.upload(image);
+
 	// Convert image to grayscale
 	cuda::cvtColor(gpuImage, grayscale, COLOR_BGR2GRAY);
 
@@ -46,50 +48,57 @@ Mat createEnergyImg(Mat& image) {
 
 	cuda::addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);
 
-	// Convert gradient to double
-	grad.convertTo(energy, CV_64F, 1.0 / 255.0);
+	// Convert gradient to float
+	grad.convertTo(energy, CV_32F, 1.0 / 255.0);
+	
+	auto end = chrono::high_resolution_clock::now();
 
-	clock_t end = clock();
-	sobelEnergyTime += ((float)end - (float)start) / CLOCKS_PER_SEC;
+	sobelEnergyTime += chrono::duration_cast<chrono::milliseconds>(end - start).count();
 
 	return energy;
 }
 
 Mat createEnergyMap(Mat& energy, eSeamDirection seamDirection) {
-	clock_t start = clock();
+	auto start = chrono::high_resolution_clock::now();
 	int rowSize = energy.rows;
 	int colSize = energy.cols;
 	// Initialize energy map
-	Mat energyMap = Mat(rowSize, colSize, CV_64F, double(0));
+	Mat energyMap = Mat(rowSize, colSize, CV_32F, float(0));
 
 	// Call cuda function to get energy map
 	getEnergyMap(energy, energyMap, rowSize, colSize, seamDirection);
 
-	clock_t end = clock();
-	cumEnergyTime += ((float)end - (float)start) / CLOCKS_PER_SEC;
-
+	auto end = chrono::high_resolution_clock::now();
+	cumEnergyTime += chrono::duration_cast<chrono::milliseconds>(end - start).count();
 	return energyMap;
 }
 
 vector<int> findSeam(Mat& energyMap, eSeamDirection seamDirection) {
-	clock_t start = clock();
+	auto start = chrono::high_resolution_clock::now();
 	int rowSize = energyMap.rows;
 	int colSize = energyMap.cols;
 	int curLoc;
 	vector<int> seam;
-	double topCenter, topLeft, topRight;
+	float topCenter, topLeft, topRight;
+	double minVal;
+	Point minLoc;
+
 	
 	if (seamDirection == VERTICAL) {
 		// Call kernel for parallel reduction to find min cumulative energy
 		seam.resize(rowSize);
+
 		curLoc = getMinCumulativeEnergy(energyMap, rowSize, colSize, VERTICAL);
+		//cuda::minMaxLoc(energyMap.row(rowSize - 1), &minVal, NULL, &minLoc, NULL);
+		//curLoc = minLoc.x;
+
 		seam[rowSize - 1] = curLoc;
 
 		// Look at top neighbors to find next minimum cumulative energy
 		for (int row = rowSize - 1; row > 0; row--) {
-			topCenter = energyMap.at<double>(row - 1, curLoc);
-			topLeft = energyMap.at<double>(row - 1, max(curLoc - 1, 0));
-			topRight = energyMap.at<double>(row - 1, min(curLoc + 1, colSize - 1));
+			topCenter = energyMap.at<float>(row - 1, curLoc);
+			topLeft = energyMap.at<float>(row - 1, max(curLoc - 1, 0));
+			topRight = energyMap.at<float>(row - 1, min(curLoc + 1, colSize - 1));
 
 			// find next col idx
 			if (min(topLeft, topCenter) > topRight) {
@@ -109,14 +118,18 @@ vector<int> findSeam(Mat& energyMap, eSeamDirection seamDirection) {
 		// Horizontal seam, reduces height
 		// Call kernel for parallel reduction to find min cumulative energy
 		seam.resize(colSize);
+		
 		curLoc = getMinCumulativeEnergy(energyMap, rowSize, colSize, HORIZONTAL);
+		//cuda::minMaxLoc(energyMap.col(colSize - 1), &minVal, NULL, &minLoc, NULL);
+		//curLoc = minLoc.y;
+		
 		seam[colSize - 1] = curLoc;
 
 		// Look at top neighbors to find next minimum cumulative energy
 		for (int col = colSize - 1; col > 0; col--) {
-			topCenter = energyMap.at<double>(curLoc, col - 1);
-			topLeft = energyMap.at<double>(max(curLoc - 1, 0), col - 1);
-			topRight = energyMap.at<double>(min(curLoc + 1, rowSize - 1), col - 1);
+			topCenter = energyMap.at<float>(curLoc, col - 1);
+			topLeft = energyMap.at<float>(max(curLoc - 1, 0), col - 1);
+			topRight = energyMap.at<float>(min(curLoc + 1, rowSize - 1), col - 1);
 
 			// find next col idx
 			if (min(topLeft, topCenter) > topRight) {
@@ -133,17 +146,19 @@ vector<int> findSeam(Mat& energyMap, eSeamDirection seamDirection) {
 		}
 	}
 	
-	clock_t end = clock();
-	findSeamTime += ((float)end - (float)start) / CLOCKS_PER_SEC;
+	auto end = chrono::high_resolution_clock::now();
+	findSeamTime += chrono::duration_cast<chrono::milliseconds>(end - start).count();
 	return seam;
 }
 
 int main(int argc, char* argv[]) {
-	clock_t start = clock();
+	for(int k = 0; k < 5; k++)
+		warmUpGPU();
+	auto start = chrono::high_resolution_clock::now();
 	// Set how much to reduce width or/and height by and set image.
-	int reduceWidth = 100;
-	int reduceHeight = 50;
-	string imageName = "../images/inputPrague.jpg";
+	int reduceWidth = 1000;
+	int reduceHeight = 200;
+	string imageName = "F:/CUDA/seam_carving/images/inputColdplayWings.jpg";
 	Mat image = imread(imageName, IMREAD_COLOR);
 	if (image.empty()) {
 		cout << "Invalid image. Please try again" << endl;
@@ -157,10 +172,10 @@ int main(int argc, char* argv[]) {
 		Mat energy = createEnergyImg(image);
 		Mat energyMap = createEnergyMap(energy, VERTICAL);
 		vector<int> seam = findSeam(energyMap, VERTICAL);
-		clock_t startRemove = clock();
-		image = removeSeam(image, seam, VERTICAL);
-		clock_t endRemove = clock();
-		removeSeamTime += ((float)endRemove - (float)startRemove) / CLOCKS_PER_SEC;
+		auto startRemove = chrono::high_resolution_clock::now();
+		removeSeam(image, seam, VERTICAL);
+		auto endRemove = chrono::high_resolution_clock::now();
+		removeSeamTime += chrono::duration_cast<chrono::milliseconds>(endRemove - startRemove).count();
 	}
 
 	// Horizontal seam, reduces height
@@ -168,28 +183,29 @@ int main(int argc, char* argv[]) {
 		Mat energy = createEnergyImg(image);
 		Mat energyMap = createEnergyMap(energy, HORIZONTAL);
 		vector<int> seam = findSeam(energyMap, HORIZONTAL);
-		clock_t startRemove = clock();
-		image = removeSeam(image, seam, HORIZONTAL);
-		clock_t endRemove = clock();
-		removeSeamTime += ((float)endRemove - (float)startRemove) / CLOCKS_PER_SEC;
+		auto startRemove = chrono::high_resolution_clock::now();
+		removeSeam(image, seam, HORIZONTAL);
+		auto endRemove = chrono::high_resolution_clock::now();
+		removeSeamTime += chrono::duration_cast<chrono::milliseconds>(endRemove - startRemove).count();
 	}
 
 	imshow("Result", image);
 
-	clock_t end = clock();
-	float totalTime = ((float)end - (float)start) / CLOCKS_PER_SEC;
+	auto end = chrono::high_resolution_clock::now();
+	float totalTime = chrono::duration_cast<chrono::milliseconds>(end - start).count();
 	cout << "Parallel with CUDA" << endl;
 	cout << "Image name: " << imageName << endl;
 	cout << "Input dimension " << imageSize.first << " x " << imageSize.second << endl;
 	cout << "Output dimension " << image.cols << " x " << image.rows << endl;
-	cout << "Cumulative time taken in each function for all iterations" << "s" << endl;
-	cout << "Time taken to get energy of each image: " << sobelEnergyTime << "s" << endl;
-	cout << "Time taken to get cumulative energy map: " << cumEnergyTime << "s" << endl;
-	cout << "Time taken to find seam: " << findSeamTime << "s" << endl;
-	cout << "Time taken to remove seam: " << removeSeamTime << "s" << endl;
-	cout << "Total time taken: " << totalTime << "s" << endl;
+	cout << "Cumulative time taken in each function for all iterations" << "ms" << endl;
+	cout << "Time taken to get energy of each image: " << sobelEnergyTime << "ms" << endl;
+	cout << "Time taken to get cumulative energy map: " << cumEnergyTime << "ms" << endl;
+	cout << "Time taken to find seam: " << findSeamTime << "ms" << endl;
+	cout << "Time taken to remove seam: " << removeSeamTime << "ms" << endl;
+	cout << "Total time taken: " << totalTime << "ms" << endl;
 
-	imwrite("../images/outputPrague.jpg", image);
+	//imwrite("F:/CUDA/seam_carving/images/outputColdplayWings.jpg", image);
+	
 	waitKey();
 	return 0;
 }

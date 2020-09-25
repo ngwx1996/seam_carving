@@ -10,7 +10,13 @@ using namespace cv;
 
 #ifndef _histogram_
 #define _histogram_
+extern float sobelEnergyTime;
+extern float cumEnergyTime;
+extern float findSeamTime;
+extern float removeSeamTime;
+
+void warmUpGPU();
 void getEnergyMap(Mat& h_energy, Mat& h_energyMap, int rowSize, int colSize, eSeamDirection seamDirection);
 int getMinCumulativeEnergy(Mat& h_energyMap, int rowSize, int colSize, eSeamDirection seamDirection);
-Mat removeSeam(Mat& h_image, vector<int> h_seam, eSeamDirection seamDirection);
+void removeSeam(Mat& h_image, vector<int> h_seam, eSeamDirection seamDirection);
 #endif
